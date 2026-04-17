@@ -1,7 +1,5 @@
 # Create DFS cheat sheet markdown file
 
-content = """# DFS Cheat Sheet
-
 ## What is DFS?
 DFS = explore as deep as possible before backtracking
 
