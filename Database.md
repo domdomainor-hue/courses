@@ -28,6 +28,13 @@
 - Non-repeatable Read → Same row changes
 - Phantom Read → New rows appear
 
+- Read Uncommitted 🔓: Transactions can see changes made by other transactions even before they are committed.
+
+- Read Committed 🔑: A transaction can only see data that has been fully committed. This is the default for many databases like PostgreSQL.
+
+- Repeatable Read 🔄: Guarantees that if you read a row once, reading it again within the same transaction will yield the exact same data.
+
+- Serializable 🚧: The ultimate isolation. It forces transactions to execute in a way that behaves as if they were running completely sequentially.
 ---
 
 # 3. MVCC (PostgreSQL)
