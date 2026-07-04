@@ -41,6 +41,19 @@
 
 PostgreSQL uses **MVCC (Multi-Version Concurrency Control)**
 
+Instead of locking a row when someone is updating it, Postgres keeps multiple versions of that same row in the database at the same time (Snapshot).
+
+🥞 How it Works (The Snapshot)
+Every transaction gets a unique transaction ID and a "snapshot" of the database at the moment it starts.
+
+Inserts ➕: Postgres creates a new row and marks it with the current transaction ID as its creation time (stored in a hidden column called xmin).
+
+Updates 🔄: Instead of overwriting the old data, Postgres marks the old row version as expired (using a hidden column called xmax) and inserts a brand-new row version with the updated data.
+
+Deletes ❌: Postgres doesn't immediately erase the row; it just marks it as deleted by setting its xmax value.
+
+That **accumulation** of old, expired row versions is known as **bloat** 🎈 (or dead tuples), and the famous PostgreSQL process that cleans them up is called **VACUUM** 🧹.
+
 Benefits:
 
 - Readers don't block writers
@@ -48,7 +61,37 @@ Benefits:
 - High concurrency
 - Snapshot isolation
 
+### 📚 MVCC (Multi-Version Concurrency Control) Quick Review
+
+* **Core Purpose 🎯:** Allows multiple transactions to read and write simultaneously without blocking each other. **Readers never block writers, and writers never block readers.**
+* **The Mechanism 🥞:** Instead of overwriting data on an `UPDATE` or deleting it instantly on a `DELETE`, Postgres creates and maintains **multiple versions** of the same row simultaneously.
+* **Hidden Columns 🔍:** Every row tracking relies on hidden system metadata columns:
+* `xmin`: The Transaction ID that *created* the row version.
+* `xmax`: The Transaction ID that *expired/deleted* the row version (set to 0 if still active).
+
+
+* **The Snapshot 📸:** When a transaction runs, it gets a "snapshot" of active transaction IDs. It can only see data committed *before* its snapshot was taken.
+
 ---
+
+### 🧪 Isolation Levels & Snapshot Timing
+
+Your isolation level dictates exactly *when* Postgres captures that MVCC snapshot:
+
+| Isolation Level | Snapshot Timing ⏱️ | Anomalies Allowed 👾 |
+| --- | --- | --- |
+| **Read Committed** (Default) | A new snapshot is taken at the start of **each query**. | Non-Repeatable Reads, Phantom Reads. |
+| **Repeatable Read** | One snapshot is taken at the start of the **entire transaction**. | Write Skew (but protects against Phantoms). |
+| **Serializable** | Uses the single transaction snapshot + **SSI** tracking. | **None.** Full protection. |
+
+---
+
+### 🛡️ Complex Concurrency & Cleanup
+
+* **Write Skew Anomaly ⚖️:** Occurs at *Repeatable Read* when two concurrent transactions read overlapping data, make separate changes that are individually valid, but together violate a business rule (e.g., the two doctors on call example).
+* **SSI (Serializable Snapshot Isolation) 🕵️‍♂️:** Activated only in `SERIALIZABLE` mode. It tracks read-write footprints (SIREAD locks). If a conflict loop is detected at commit time, Postgres aborts the younger transaction with a serialization error.
+* **The Bloat Problem 🎈:** Because MVCC leaves old row versions behind, tables accumulate "dead tuples" over time.
+* **VACUUM 🧹:** The background process (**Autovacuum**) that scans tables, marks dead tuple space as reusable for future inserts, and updates visibility maps. *Note: Standard VACUUM does not return disk space to the OS.*
 
 # 4. Locks
 
@@ -68,6 +111,13 @@ FOR UPDATE;
 Prevents concurrent updates.
 
 Useful in payments.
+
+🔒 Explicit Locking Review
+Implicit vs. Explicit: While Postgres handles most locking automatically, developers use explicit locking (SELECT ... FOR UPDATE) to protect critical business logic.
+
+The Stand-off (Deadlocks) 🔄: Occur when two or more transactions are blocked, each waiting for a lock held by the other.
+
+The Resolution ⚙️: Postgres uses a deadlock_timeout (default: 1 second). Once triggered, the deadlock detector scans for a circular loop, selects a "victim" transaction, aborts it, and rolls back its changes to free the locks.
 
 ---
 
