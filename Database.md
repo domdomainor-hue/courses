@@ -634,6 +634,39 @@ Be ready to discuss:
 
 ---
 
+# 🗺️ The Big Picture: Scaling Your Database
+
+| Strategy | What Happens to the Data? | 🎯 Primary Goal | Analogy 🏢 |
+| --- | --- | --- | --- |
+| **Partitioning** | Splits a massive table into smaller sub-tables **on the same server**. | Speeds up queries and simplifies data cleanup. | Organizing one giant filing cabinet into labeled drawers. |
+| **Sharding** | Splits a massive table across **multiple physical servers**. | Scales write capacity and storage limits. | Moving parts of that filing cabinet to completely different branch offices. |
+| **Replication** | Makes **exact copies** of the entire database on other servers. | High Availability (backup) and scaling read traffic. | Making duplicate copies of the files so multiple people can read them at once. |
+
+---
+
+### 🧩 Key Architecture Rules to Remember
+
+#### 1. Partitioning Types (Same Server)
+
+* 📅 **Range:** Splits by continuous values (e.g., `ORDER BY date` $\rightarrow$ Jan, Feb, Mar). Great for deleting old data quickly.
+* 🏷️ **List:** Splits by explicit categories (e.g., `ORDER BY country` $\rightarrow$ US, UK, JP).
+* 🔢 **Hash:** Uses a math formula to distribute rows evenly. Prevents data skew.
+
+#### 2. The Sharding Key Tradeoff (Multiple Servers)
+
+* **Choosing an ID (e.g., `client_id`):** 🟢 Fast for single-client lookups. 🔴 Risks **Hotspots** if one client is hyper-active.
+* **Choosing a Hash:** 🟢 Evenly balances the workload across all servers. 🔴 Forces slow **Scatter-Gather** queries for lookups that don't use the key.
+
+#### 3. Replication Nuances (Copying Data)
+
+* 👑 **Primary Node:** The only server that handles writes (`INSERT`, `UPDATE`).
+* 👥 **Replica Nodes:** Read-only servers (`SELECT`).
+* ⚠️ **The Catch:** **Replication lag** can temporarily cause *stale reads* (reading old data before the copy finishes).
+
+---
+
+Would you like to try a quick 3-question quiz to test your memory on these tradeoffs before you wrap up?
+
 # 30-Second Recap
 
 - ACID
