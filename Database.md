@@ -123,9 +123,9 @@ The Resolution ⚙️: Postgres uses a deadlock_timeout (default: 1 second). Onc
 
 # 5. Optimistic vs Pessimistic Locking
 
-## Optimistic
+## Optimistic (Detect & Retry)
 
-Uses version column.
+Uses version column. It assumes conflicts are rare.
 
 ```text
 UPDATE ... WHERE id=? AND version=?
@@ -142,11 +142,19 @@ Cons
 
 ---
 
-## Pessimistic
+## Pessimistic (Block & Prevent)
 
 ```sql
 SELECT ... FOR UPDATE
 ```
+
+```java
+@Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Account a WHERE a.id = :id")
+    Optional<Account> findByIdForUpdate(Long id);
+```
+
+⚠️ Postgres Nuance: PESSIMISTIC_WRITE maps to Postgres's FOR UPDATE (exclusive lock). PESSIMISTIC_READ maps to FOR SHARE (shared lock, allowing others to read but blocking writes).
 
 Pros
 
