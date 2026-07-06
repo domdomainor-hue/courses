@@ -1,3 +1,5 @@
+<img width="1078" height="1626" alt="image" src="https://github.com/user-attachments/assets/f4f72140-7038-4bb1-96dc-7d57091a582d" />
+
 🚀 Java Backend Interview Series – Day 23/30
 
 📨 Event-Driven Architecture with Apache Kafka
