@@ -634,8 +634,3 @@ class LoadBalancedPool {
 3. **Practice:** LeetCode Medium/Hard concurrency problems
 
 ---
-
-Would you like me to:
-1. Provide practice interview questions for specific topics?
-2. Create a deep-dive explanation on any particular concept?
-3. Share real-world project examples using these patterns?
