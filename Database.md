@@ -169,10 +169,10 @@ Purpose:
 Common types
 
 - B-Tree ⭐ (default)
-- Hash
-- GIN
-- GiST
-- BRIN
+- Hash : A specialized index that converts a value into a hash code. It only handles exact equality matches (=) and cannot do range scans, but it is highly optimized for that single job.
+- GIN : Generalized Inverted Index (It is perfect for searching inside JSONB documents, arrays, or full-text search documents)
+- GiST : (Generalized Search Tree) This is a highly flexible tree structure used when data can overlap or has multiple dimensions. It is the backbone for indexing geometric shapes, geographic coordinates (PostGIS), and range types (like a date range for a hotel booking).
+- BRIN : (Block Range Index) It is incredibly tiny and works wonders for massive, naturally ordered data like a created_at timestamp on a logging table.
 
 ---
 
@@ -196,6 +196,8 @@ created_at
 ```
 
 (Leftmost prefix rule)
+
+- Navigate B-TREE to get the TID ( Tuple ID ) -> disk space location.
 
 ---
 
@@ -221,12 +223,36 @@ Faster.
 
 # 7. EXPLAIN
 
+| Component / Scenario | How It Works & How the Planner Reacts |
+| --- | --- |
+| **🧠 The Query Planner** | Acts like a GPS navigation system. It evaluates every possible path to fetch your data, calculates an estimated "cost" for each, and chooses the fastest route. |
+| **📊 The `ANALYZE` Command** | Updates the database's internal statistics (such as data distribution and row counts). The planner relies entirely on these statistics to make accurate predictions. |
+| **📉 High-Frequency Data (99% match)** | If a value appears in almost every row, the planner skips the B-Tree index and performs a **Sequential Scan**. Reading the table straight through is faster than constantly jumping back and forth between the index and the disk. |
+| **🔀 Randomized Data + BRIN** | If data is scattered randomly, the minimum and maximum values for every physical block will overlap heavily. Because the planner can no longer skip any blocks, a BRIN index becomes useless, and the database falls back to a **Sequential Scan**. |
+
+---
+
 Always know:
 
 ```sql
 EXPLAIN ANALYZE
 ```
+`EXPLAIN ANALYZE` is the ultimate profiling tool in PostgreSQL used to inspect and debug query performance. 🚀
 
+While a regular `EXPLAIN` command just shows the blueprint (the execution plan) that the query planner *thinks* it will use, adding `ANALYZE` forces Postgres to actually run the query and measure real-world performance.
+
+Here is how they compare side-by-side:
+
+| Command | Does it run the query? | What does it show? |
+| --- | --- | --- |
+| **`EXPLAIN`** 📋 | ❌ No | The planner's **estimated** cost and expected row counts. |
+| **`EXPLAIN ANALYZE`** ⏱️ | Yes | The **actual** execution time, real row counts, and memory usage. |
+
+When you read the output of an `EXPLAIN ANALYZE`, you get to compare the planner's guesses against reality. If the planner's estimates are wildly different from the actual execution results, it usually means the database's internal statistics are out of date, leading to poor index choices.
+
+> ⚠️ **Safety Warning:** Because `EXPLAIN ANALYZE` actually runs the query, running `EXPLAIN ANALYZE DELETE FROM users;` will physically delete your data! To safely test a write query, you should always wrap it in a transaction and roll it back.
+
+---
 Look for
 
 - Seq Scan ❌
