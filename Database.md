@@ -201,6 +201,13 @@ created_at
 
 ---
 
+```
+CREATE INDEX idx_orders_pending 
+ON orders (order_id) 
+INCLUDE (shipping_address) 
+WHERE status = 'PENDING';
+```
+
 ## Covering Index
 
 Index contains all requested columns.
