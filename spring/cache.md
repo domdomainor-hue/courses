@@ -1,3 +1,4 @@
+<img width="1024" height="1536" alt="image" src="https://github.com/user-attachments/assets/07e40ec8-55d8-4d14-9033-c10eeb39ac43" />
 
 
 ⚡ Spring Boot Caching Explained
