@@ -610,6 +610,84 @@ class LoadBalancedPool {
     }
 }
 ```
+------
+
+# Core synchronization utilities
+
+This revision guide covers core synchronization utilities (`java.util.concurrent`), asynchronous orchestration (`CompletableFuture`), and modern JVM concurrency paradigms (Virtual Threads & Structured Concurrency).
+
+---
+
+## 1. High-Level Synchronization Utilities
+
+| Utility | Reusable? | Dynamic Parties? | Core Mechanism | Primary Use Case |
+| :--- | :---: | :---: | :--- | :--- |
+| **`CountDownLatch`** | ❌ No | ❌ No | A one-way gate. Threads block via `await()` until the counter is decremented to zero via `countDown()`. | Main thread waiting for $N$ parallel initialization tasks to complete before starting. |
+| **`CyclicBarrier`** |  Yes | ❌ No | A synchronization point where a fixed number of threads must wait for each other. Resets automatically. Supports an optional execution action when tripped. | Parallel algorithms (e.g., matrix processing, game loops) executing in repetitive lock-step phases. |
+| **`Semaphore`** |  Yes | ❌ No | Controls access to a shared resource pool using a finite set of virtual "permits" (`acquire()` / `release()`). | Rate-limiting, throttling, or managing database connection pools (Bulkhead Pattern). |
+| **`Phaser`** |  Yes |  Yes | A highly flexible, multi-phase synchronization barrier where the number of registered parties can change on the fly. | Multi-stage build pipelines or dynamic workflows where threads register/deregister mid-process. |
+
+---
+
+## 2. CompletableFuture (Asynchronous Orchestration)
+
+`CompletableFuture` implements `Future` and `CompletionStage`, enabling non-blocking, event-driven pipelines instead of blocking thread-parking (`.get()`).
+
+### 🚦 Thread Pool Routing (Crucial)
+* **The Danger:** Calling async methods (e.g., `supplyAsync`, `thenApplyAsync`) without an explicit executor routes tasks to `ForkJoinPool.commonPool()`. If this pool is saturated by blocking I/O, it starves the entire JVM.
+* **The Solution:** Always supply a dedicated, isolated custom `Executor` (Bulkhead Pattern) for I/O-bound tasks.
+
+### ⛓️ API Orchestration Patterns
+* **Sequential Chain (Dependent):** `thenCompose(Function)` (equivalent to monadic `flatMap`). Returns a flattened future when Step B depends on the output of Step A.
+* **Parallel Combine (Independent):** `thenCombine(CompletionStage, BiFunction)`. Combines two independent futures concurrently and merges their results when both complete.
+* **Fan-Out / Fan-In:** * `CompletableFuture.allOf(...)`: Blocks until all participating futures complete.
+  * `CompletableFuture.anyOf(...)`: Returns immediately with the result of the fastest completing future.
+
+### 🛡️ Exception Handling & Resilience
+* `exceptionally(Function)`: Acts as a standard `catch` block. Catches upstream exceptions and recovers with a default/fallback value.
+* `handle(BiFunction)`: Always executes. Receives both the result and exception, allowing transformation of either.
+* `completeOnTimeout(value, duration, unit)`: Proactively recovers with a default value if the task exceeds the specified timeout threshold.
+* `orTimeout(duration, unit)`: Completes the future exceptionally with a `TimeoutException` if the execution boundary is breached.
+
+---
+
+## 3. Virtual Threads (Project Loom - Java 21+)
+
+Virtual Threads are lightweight, user-mode threads managed entirely by the JVM, rather than the Operating System.
+
+### ⚙️ Mechanics
+* **Platform Threads:** 1:1 mapping to OS kernel threads. High memory footprint (~1MB stack), expensive context switching, limited to thousands.
+* **Virtual Threads:** $M:N$ mapping. Millions of virtual threads are multiplexed over a small pool of underlying platform carrier threads. 
+* **Non-Blocking Yielding:** When a virtual thread performs blocking operations (I/O, locks, sleep), the JVM automatically unmounts it from the carrier thread, parking it until the resource is ready. The carrier thread is immediately freed up to execute other virtual threads.
+
+### ⚠️ Senior Production Pitfalls (Interview Traps)
+1. **Carrier Thread Pinning:** Occurs when a virtual thread blocks inside a `synchronized` block or executes a native JNI call. The carrier thread is held hostage. 
+   * *The Fix:* Replace `synchronized` blocks with `ReentrantLock`.
+2. **Pooling Virtual Threads is an Antipattern:** Virtual threads are incredibly cheap and designed to be short-lived and disposable. **Never pool them.** To throttle database queries or rate-limit resources, run virtual threads unpooled and limit concurrent access inside the threads using a `Semaphore`.
+
+---
+
+## 4. Structured Concurrency
+
+Structured Concurrency binds the lifecycles of concurrent subtasks within a strict lexical scope block.
+
+### 📏 Rules of Engagement
+* Uses `StructuredTaskScope` inside a **try-with-resources** block.
+* Subtasks are spawned using `scope.fork()`, running on virtual threads.
+* All spawned subtasks are guaranteed to complete or terminate before control exits the try-with-resources block. No "orphan threads" can leak.
+
+### 🧩 Core Concepts & Joining Policies
+Configure the scope's completion and error handling via specific `Joiner` policies passed to `StructuredTaskScope.open()`:
+
+* **`Joiner.allSuccessfulOrThrow()`**: 
+  * *Behavior:* Short-circuits immediately.
+  * *Action:* If any subtask fails, all other active sibling subtasks are automatically interrupted/cancelled, and the scope throws a `FailedException`.
+* **`Joiner.anySuccessfulOrThrow()`**: 
+  * *Behavior:* First to finish wins.
+  * *Action:* Returns the result of the fastest successful subtask and immediately cancels all slower, remaining threads (ideal for redundant racing calls).
+* **`Joiner.awaitAll()`**: 
+  * *Behavior:* No short-circuit.
+  * *Action:* Waits for all forks to finish regardless of success/failure, allowing manual state inspection of each task via `.state()`.
 
 ---
 
