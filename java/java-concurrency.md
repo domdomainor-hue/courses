@@ -711,4 +711,15 @@ Configure the scope's completion and error handling via specific `Joiner` polici
 2. **Article:** [Baeldung Java Concurrent Tutorial](https://baeldung.com/java-concurrency/)
 3. **Practice:** LeetCode Medium/Hard concurrency problems
 
+Do you need to lock a simple variable?
+ └── YES ──> Use Atomic classes (CAS)
+ └── NO  ──> Do you need basic mutual exclusion?
+              ├── YES ──> Is code simplicity your priority?
+              │            ├── YES ──> Use 'synchronized'
+              │            └── NO  ──> Use 'ReentrantLock' (Default unfair)
+              └── NO  ──> Do you have a high Read-to-Write ratio?
+                           ├── YES ──> Do you need reentrancy?
+                           │            ├── YES ──> Use 'ReentrantReadWriteLock'
+                           │            └── NO  ──> Use 'StampedLock' (Fastest)
+                           └── NO  ──> Use 'ReentrantLock'
 ---
